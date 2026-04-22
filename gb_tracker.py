@@ -1,4 +1,3 @@
-
 import requests
 import json
 import os
@@ -40,7 +39,6 @@ def enviar_discord(mod_resumen, tipo):
     version = mod_resumen.get("_sVersion", "")
     link = f"https://gamebanana.com/mods/{mod_id}"
     
-    # 1. Asignamos la fecha exacta y la formateamos a DD/MM/AAAA HH:MM (24 hrs)
     if tipo == "Publicado":
         ts_fecha = mod_resumen.get("_tsDateAdded") or mod_resumen.get("_tsDateUpdated")
     else:
@@ -49,7 +47,6 @@ def enviar_discord(mod_resumen, tipo):
     if not ts_fecha:
         ts_fecha = int(time.time())
         
-    # Magia de Python: Convertimos el número a tu formato exacto
     fecha_formateada = datetime.datetime.fromtimestamp(ts_fecha).strftime('%d/%m/%Y %H:%M')
 
     try:
@@ -117,27 +114,36 @@ def enviar_discord(mod_resumen, tipo):
         if base_url and archivo:
             imagen_url = f"{base_url}/{archivo}"
 
-    # 2. Armamos el mensaje (Hemos quitado "timestamp" y pusimos la fecha en el "footer")
-    data = {
-        "content": f"**{titulo_alerta}**",
-        "embeds": [{
-            "title": f"{nombre_mod} {'['+version+']' if version else ''}",
-            "url": link,
-            "description": descripcion_real,
-            "color": color,
-            "image": {"url": imagen_url},
-            "footer": {"text": f"ID: {mod_id} • Date: {fecha_formateada}"}
-        }]
+    # ARREGLO: Construimos el embed con cuidado para no enojar a Discord
+    embed = {
+        "title": f"{nombre_mod} {'['+version+']' if version else ''}"[:256],
+        "url": link,
+        "description": descripcion_real[:4000],
+        "color": color,
+        "footer": {"text": f"ID: {mod_id} • Date: {fecha_formateada}"}
     }
     
-    requests.post(WEBHOOK_URL, json=data)
+    # Solo agregamos la imagen si realmente existe un enlace válido
+    if imagen_url:
+        embed["image"] = {"url": imagen_url}
+
+    data = {
+        "content": f"**{titulo_alerta}**",
+        "embeds": [embed]
+    }
+    
+    # ARREGLO: Verificamos si Discord rechaza el mensaje
+    res_discord = requests.post(WEBHOOK_URL, json=data)
+    if res_discord.status_code >= 400:
+        print(f"❌ Error enviando mod {mod_id} a Discord: Código {res_discord.status_code} - {res_discord.text}")
+        return False # Si Discord lo bloquea, devolvemos False para que NO se registre en el historial.
+        
     time.sleep(2)
     return True
 
 def main():
     mods = []
     for page in range(1, 6):
-        # TU ENLACE ORIGINAL QUE SÍ FUNCIONABA
         url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
         try:
             response = requests.get(url)
@@ -167,7 +173,6 @@ def main():
         else:
             tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
-        # BLOQUEO DE CLONES EN LA MISMA EJECUCIÓN
         if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:
             enviado = True 
             
@@ -181,7 +186,6 @@ def main():
                 nuevos_datos[mod_id] = fecha_upd
                 hubo_cambios = True
 
-    # CREA EL ARCHIVO SIEMPRE PARA EVITAR EL ERROR 128 EN GITHUB
     if hubo_cambios or not os.path.exists(DATA_FILE):
         guardar_historial(nuevos_datos)
 
