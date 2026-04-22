@@ -181,7 +181,7 @@ def main():
                 nuevos_datos[mod_id] = fecha_upd
                 hubo_cambios = True
 
-    if hubo_cambios or not os.path.exists(DATA_FILE)::
+    if hubo_cambios or not os.path.exists(DATA_FILE):
         guardar_historial(nuevos_datos)
 
 if __name__ == "__main__":
