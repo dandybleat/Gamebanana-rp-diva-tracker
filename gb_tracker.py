@@ -6,7 +6,7 @@ import re
 import time
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-GAME_ID = "8501" 
+GAME_ID = "7886" 
 DATA_FILE = "historial.json"
 
 def cargar_historial():
