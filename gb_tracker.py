@@ -6,7 +6,7 @@ import re
 import time
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-GAME_ID = "7886" 
+GAME_ID = "8501" 
 DATA_FILE = "historial.json"
 
 def cargar_historial():
@@ -26,14 +26,13 @@ def limpiar_texto(html):
     texto = re.sub(clean, '', html)
     texto = texto.replace('&nbsp;', ' ').strip()
     
-    # 2. Recolector de basura: Cortamos el texto si empieza la interfaz de la página
+    # 2. Recolector de basura
     basura_ui = ["Manage Collections", "Files", "File Info", "Archived Files", "Comments", "Embed", "Credits", "THANKS FOR:"]
     for palabra in basura_ui:
         if palabra in texto:
-            # Cortamos el texto justo antes de que aparezca la palabra prohibida
             texto = texto.split(palabra)[0].strip()
             
-    # 3. Límite de seguridad para Discord
+    # 3. Límite de seguridad
     return (texto[:300] + '...') if len(texto) > 300 else texto
 
 def enviar_discord(mod_resumen, tipo):
@@ -45,8 +44,8 @@ def enviar_discord(mod_resumen, tipo):
         res.raise_for_status()
         mod_completo = res.json()
     except Exception as e:
-        print(f"Error al obtener perfil del mod {mod_id}: {e}")
-        mod_completo = mod_resumen
+        print(f"Advertencia al leer mod {mod_id} (Quizá fue borrado u oculto): {e}")
+        mod_completo = mod_resumen # Fallback seguro
 
     nombre_mod = mod_completo.get("_sName", "Mod")
     version = mod_completo.get("_sVersion", "")
@@ -61,20 +60,18 @@ def enviar_discord(mod_resumen, tipo):
             if res_upd.status_code == 200:
                 updates_data = res_upd.json()
                 if isinstance(updates_data, list) and len(updates_data) > 0:
-                    # Extraemos el Título exacto del parche y su descripción
                     titulo_upd = updates_data[0].get("_sTitle", "").strip()
                     texto_upd = updates_data[0].get("_sText", "").strip()
                     
                     texto_limpio = limpiar_texto(texto_upd)
                     
-                    # Armamos un mensaje bonito combinando ambos
                     if titulo_upd and texto_limpio:
                         descripcion_real = f"**{titulo_upd}**\n{texto_limpio}"
                     elif titulo_upd:
                         descripcion_real = f"**{titulo_upd}**"
                     elif texto_limpio:
                         descripcion_real = texto_limpio
-        except Exception as e:
+        except Exception:
             pass
             
         if not descripcion_real:
@@ -85,13 +82,12 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    # 3. Fechas reales y formato visual (A prueba de vacíos)
+    # --- CORRECCIÓN DEL FALLO DE FECHAS AQUÍ ---
     fecha_upd = mod_completo.get("_tsDateUpdated")
-    if not fecha_upd:  # Si la fecha de actualización viene como 'null' (None)
+    if not fecha_upd:  
         fecha_upd = mod_completo.get("_tsDateAdded")
-    if not fecha_upd:  # Red de seguridad extrema por si GameBanana no envía ninguna fecha
-        import time
-        fecha_upd = int(time.time())
+    if not fecha_upd:  
+        fecha_upd = int(time.time()) # Usa el time global correctamente
         
     timestamp_iso = datetime.datetime.fromtimestamp(fecha_upd, tz=datetime.timezone.utc).isoformat()
 
@@ -119,7 +115,7 @@ def enviar_discord(mod_resumen, tipo):
     }
     
     requests.post(WEBHOOK_URL, json=data)
-    time.sleep(2) 
+    time.sleep(2) # El freno mágico ahora funciona bien siempre
 
 def main():
     mods = []
@@ -147,7 +143,12 @@ def main():
         fecha_upd = mod.get("_tsDateUpdated")
         fecha_add = mod.get("_tsDateAdded")
         
-        tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
+        # Red de seguridad para el cálculo de eventos
+        if not fecha_upd or not fecha_add:
+            tipo_evento = "Actualizado"
+            fecha_upd = fecha_upd or int(time.time())
+        else:
+            tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
         if mod_id not in historial or historial[mod_id] < fecha_upd:
             if not historial:
