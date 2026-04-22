@@ -1,0 +1,38 @@
+name: GameBanana Tracker
+
+on:
+  schedule:
+    - cron: '*/20 * * * *' # Se ejecuta cada 20 minutos
+  workflow_dispatch: # Permite ejecutarlo manualmente con un botón
+
+jobs:
+  run-tracker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Necesario para guardar el historial
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Ejecutar Script de Python
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python gb_tracker.py
+
+      - name: Guardar historial de actualizaciones
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add historial.json
+          # Si hay un cambio en el historial, lo guarda para la próxima ejecución
+          git commit -m "Actualizando historial de mods" || echo "Sin novedades."
+          git push
