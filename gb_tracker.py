@@ -135,9 +135,9 @@ def enviar_discord(mod_resumen, tipo):
 
 def main():
     mods = []
-    for page in range(1, 6):
+    for page in range(1, 16):
         # Usamos la Base de Datos directa en lugar del muro general
-        url = f"https://gamebanana.com/apiv11/Game/7886/Subfeed?_nPage=1&_nPerpage=150&_sSort=updated&_csvModelInclusions=Mod"
+        url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_csvModelInclusions=Mod"
         try:
             response = requests.get(url)
             response.raise_for_status()
