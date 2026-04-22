@@ -85,7 +85,14 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    fecha_upd = mod_completo.get("_tsDateUpdated", mod_completo.get("_tsDateAdded"))
+    # 3. Fechas reales y formato visual (A prueba de vacíos)
+    fecha_upd = mod_completo.get("_tsDateUpdated")
+    if not fecha_upd:  # Si la fecha de actualización viene como 'null' (None)
+        fecha_upd = mod_completo.get("_tsDateAdded")
+    if not fecha_upd:  # Red de seguridad extrema por si GameBanana no envía ninguna fecha
+        import time
+        fecha_upd = int(time.time())
+        
     timestamp_iso = datetime.datetime.fromtimestamp(fecha_upd, tz=datetime.timezone.utc).isoformat()
 
     titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
