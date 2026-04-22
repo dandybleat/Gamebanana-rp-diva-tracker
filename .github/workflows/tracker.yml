@@ -2,8 +2,8 @@ name: GameBanana Tracker
 
 on:
   schedule:
-    # Se ejecutará cada 10 minutos (minutos 0, 10, 20, 30, 40, 50)
-    - cron: '*/10 * * * *' 
+    # Se ejecutará en los minutos 13 y 43 de cada hora (ej. 18:13, 18:43, 19:13...)
+    - cron: '13,43 * * * *' 
   workflow_dispatch:
 
 jobs:
