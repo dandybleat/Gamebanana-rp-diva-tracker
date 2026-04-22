@@ -1,3 +1,4 @@
+
 import requests
 import json
 import os
@@ -11,7 +12,6 @@ DATA_FILE = "historial.json"
 
 def cargar_historial():
     if os.path.exists(DATA_FILE):
-        # Curita 1: utf-8 para que los emojis no rompan el bot
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
@@ -40,6 +40,7 @@ def enviar_discord(mod_resumen, tipo):
     version = mod_resumen.get("_sVersion", "")
     link = f"https://gamebanana.com/mods/{mod_id}"
     
+    # 1. Asignamos la fecha exacta y la formateamos a DD/MM/AAAA HH:MM (24 hrs)
     if tipo == "Publicado":
         ts_fecha = mod_resumen.get("_tsDateAdded") or mod_resumen.get("_tsDateUpdated")
     else:
@@ -48,6 +49,7 @@ def enviar_discord(mod_resumen, tipo):
     if not ts_fecha:
         ts_fecha = int(time.time())
         
+    # Magia de Python: Convertimos el número a tu formato exacto
     fecha_formateada = datetime.datetime.fromtimestamp(ts_fecha).strftime('%d/%m/%Y %H:%M')
 
     try:
@@ -115,6 +117,7 @@ def enviar_discord(mod_resumen, tipo):
         if base_url and archivo:
             imagen_url = f"{base_url}/{archivo}"
 
+    # 2. Armamos el mensaje (Hemos quitado "timestamp" y pusimos la fecha en el "footer")
     data = {
         "content": f"**{titulo_alerta}**",
         "embeds": [{
@@ -134,8 +137,8 @@ def enviar_discord(mod_resumen, tipo):
 def main():
     mods = []
     for page in range(1, 6):
-        # Curita 2: Usar Mod/Index porque el Subfeed de Switch está roto en Gamebanana
-        url = f"https://gamebanana.com/apiv11/Mod/Index?_aFilters[Generic_Game]={GAME_ID}&_sSort=updated&_nPage={page}&_nPerpage=50"
+        # TU ENLACE ORIGINAL QUE SÍ FUNCIONABA
+        url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
         try:
             response = requests.get(url)
             response.raise_for_status()
@@ -164,7 +167,7 @@ def main():
         else:
             tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
-        # Curita 3: Usar nuevos_datos para evitar mensajes clonados
+        # BLOQUEO DE CLONES EN LA MISMA EJECUCIÓN
         if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:
             enviado = True 
             
@@ -178,7 +181,7 @@ def main():
                 nuevos_datos[mod_id] = fecha_upd
                 hubo_cambios = True
 
-    # Curita 4: Crear el archivo siempre para evitar el Error 128 de Git
+    # CREA EL ARCHIVO SIEMPRE PARA EVITAR EL ERROR 128 EN GITHUB
     if hubo_cambios or not os.path.exists(DATA_FILE):
         guardar_historial(nuevos_datos)
 
