@@ -35,7 +35,23 @@ def limpiar_texto(html):
 def enviar_discord(mod_resumen, tipo):
     mod_id = mod_resumen.get("_idRow")
     
-    # 1. Consultamos el Perfil
+    # 1. Recuperamos los datos básicos desde el resumen (100% seguros)
+    nombre_mod = mod_resumen.get("_sName", "Mod")
+    version = mod_resumen.get("_sVersion", "")
+    link = f"https://gamebanana.com/mods/{mod_id}"
+    
+    # 2. Asignamos la fecha exacta según el tipo de evento
+    if tipo == "Publicado":
+        ts_fecha = mod_resumen.get("_tsDateAdded") or mod_resumen.get("_tsDateUpdated")
+    else:
+        ts_fecha = mod_resumen.get("_tsDateUpdated") or mod_resumen.get("_tsDateAdded")
+        
+    if not ts_fecha:
+        ts_fecha = int(time.time())
+        
+    timestamp_iso = datetime.datetime.fromtimestamp(ts_fecha, tz=datetime.timezone.utc).isoformat()
+
+    # 3. Consultamos el Perfil SOLO para las descripciones profundas
     try:
         perfil_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Profile"
         res = requests.get(perfil_url)
@@ -45,14 +61,11 @@ def enviar_discord(mod_resumen, tipo):
         if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
             print(f"Mod {mod_id} fantasma (404). Se omitirá hasta la próxima hora.")
             return False 
-        mod_completo = mod_resumen
+        mod_completo = {}
 
-    nombre_mod = mod_completo.get("_sName", "Mod")
-    version = mod_completo.get("_sVersion", "")
-    link = f"https://gamebanana.com/mods/{mod_id}"
-    
     descripcion_real = ""
     
+    # 4. Lógica de Descripciones (Actualización vs Nuevo)
     if tipo == "Actualizado":
         try:
             updates_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Updates"
@@ -86,37 +99,28 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*El autor actualizó los archivos pero no dejó notas del parche.*"
     else:
-        descripcion_raw = mod_completo.get("_sDescription") or mod_completo.get("_sText", "")
+        # Si es nuevo, intentamos sacar la descripción de mod_completo primero
+        descripcion_raw = mod_completo.get("_sDescription") or mod_completo.get("_sText") or mod_resumen.get("_sDescription", "")
         descripcion_real = limpiar_texto(descripcion_raw)
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    fecha_upd = mod_completo.get("_tsDateUpdated")
-    if not fecha_upd:  
-        fecha_upd = mod_completo.get("_tsDateAdded")
-    if not fecha_upd:  
-        fecha_upd = int(time.time())
-        
-    timestamp_iso = datetime.datetime.fromtimestamp(fecha_upd, tz=datetime.timezone.utc).isoformat()
-
-    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}!" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}!"
+    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
     color = 3066993 if tipo == "Publicado" else 15844367
 
-    # --- CORRECCIÓN DE IMÁGENES AQUÍ ---
-    # Priorizamos el mod_resumen porque la API de GameBanana SIEMPRE incluye las fotos ahí
+    # 5. Imágenes desde el resumen (siempre disponibles y en su nombre original)
     imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
     if not imagenes: 
-        # Plan B: por si acaso, revisamos el perfil completo
         imagenes = mod_completo.get("_aPreviewMedia", {}).get("_aImages", [])
 
     imagen_url = ""
     if imagenes:
         base_url = imagenes[0].get("_sBaseUrl", "")
         archivo = imagenes[0].get("_sFile", "")
-        # Tu regla de oro: dimensiones originales y archivos intactos
         if base_url and archivo:
             imagen_url = f"{base_url}/{archivo}"
 
+    # 6. Armamos el mensaje final
     data = {
         "content": f"**{titulo_alerta}**",
         "embeds": [{
@@ -125,7 +129,7 @@ def enviar_discord(mod_resumen, tipo):
             "description": descripcion_real,
             "color": color,
             "image": {"url": imagen_url},
-            "footer": {"text": f"ID: {mod_id} • Actualización real"},
+            "footer": {"text": f"ID: {mod_id} • GameBanana"},
             "timestamp": timestamp_iso 
         }]
     }
