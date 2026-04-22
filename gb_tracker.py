@@ -6,7 +6,7 @@ import re
 import time
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-GAME_ID = "7886" 
+GAME_ID = "8501" 
 DATA_FILE = "historial.json"
 
 def cargar_historial():
@@ -35,12 +35,11 @@ def limpiar_texto(html):
 def enviar_discord(mod_resumen, tipo):
     mod_id = mod_resumen.get("_idRow")
     
-    # 1. Recuperamos los datos básicos desde el resumen (100% seguros)
     nombre_mod = mod_resumen.get("_sName", "Mod")
     version = mod_resumen.get("_sVersion", "")
     link = f"https://gamebanana.com/mods/{mod_id}"
     
-    # 2. Asignamos la fecha exacta según el tipo de evento
+    # 1. Asignamos la fecha exacta y la formateamos a DD/MM/AAAA HH:MM (24 hrs)
     if tipo == "Publicado":
         ts_fecha = mod_resumen.get("_tsDateAdded") or mod_resumen.get("_tsDateUpdated")
     else:
@@ -49,9 +48,9 @@ def enviar_discord(mod_resumen, tipo):
     if not ts_fecha:
         ts_fecha = int(time.time())
         
-    timestamp_iso = datetime.datetime.fromtimestamp(ts_fecha, tz=datetime.timezone.utc).isoformat()
+    # Magia de Python: Convertimos el número a tu formato exacto
+    fecha_formateada = datetime.datetime.fromtimestamp(ts_fecha).strftime('%d/%m/%Y %H:%M')
 
-    # 3. Consultamos el Perfil SOLO para las descripciones profundas
     try:
         perfil_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Profile"
         res = requests.get(perfil_url)
@@ -65,7 +64,6 @@ def enviar_discord(mod_resumen, tipo):
 
     descripcion_real = ""
     
-    # 4. Lógica de Descripciones (Actualización vs Nuevo)
     if tipo == "Actualizado":
         try:
             updates_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Updates"
@@ -99,7 +97,6 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*El autor actualizó los archivos pero no dejó notas del parche.*"
     else:
-        # Si es nuevo, intentamos sacar la descripción de mod_completo primero
         descripcion_raw = mod_completo.get("_sDescription") or mod_completo.get("_sText") or mod_resumen.get("_sDescription", "")
         descripcion_real = limpiar_texto(descripcion_raw)
         if not descripcion_real:
@@ -108,7 +105,6 @@ def enviar_discord(mod_resumen, tipo):
     titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
     color = 3066993 if tipo == "Publicado" else 15844367
 
-    # 5. Imágenes desde el resumen (siempre disponibles y en su nombre original)
     imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
     if not imagenes: 
         imagenes = mod_completo.get("_aPreviewMedia", {}).get("_aImages", [])
@@ -120,7 +116,7 @@ def enviar_discord(mod_resumen, tipo):
         if base_url and archivo:
             imagen_url = f"{base_url}/{archivo}"
 
-    # 6. Armamos el mensaje final
+    # 2. Armamos el mensaje (Hemos quitado "timestamp" y pusimos la fecha en el "footer")
     data = {
         "content": f"**{titulo_alerta}**",
         "embeds": [{
@@ -129,8 +125,7 @@ def enviar_discord(mod_resumen, tipo):
             "description": descripcion_real,
             "color": color,
             "image": {"url": imagen_url},
-            "footer": {"text": f"ID: {mod_id} • GameBanana"},
-            "timestamp": timestamp_iso 
+            "footer": {"text": f"ID: {mod_id} • 📅 {fecha_formateada}"}
         }]
     }
     
