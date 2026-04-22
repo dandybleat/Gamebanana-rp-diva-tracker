@@ -9,6 +9,9 @@ WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 GAME_ID = "7886" 
 DATA_FILE = "historial.json"
 
+# Corrección menor 1: Identidad para evitar bloqueos al "entrar" al mod
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
 def cargar_historial():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -32,12 +35,12 @@ def limpiar_texto(html):
             
     return (texto[:300] + '...') if len(texto) > 300 else texto
 
-def enviar_discord(mod_resumen, tipo):
+def enviar_discord(mod_resumen, tipo, model_name="Mod"):
     mod_id = mod_resumen.get("_idRow")
-    
     nombre_mod = mod_resumen.get("_sName", "Mod")
     version = mod_resumen.get("_sVersion", "")
-    link = f"https://gamebanana.com/mods/{mod_id}"
+    categoria_url = model_name.lower() + "s"
+    link = f"https://gamebanana.com/{categoria_url}/{mod_id}"
     
     if tipo == "Publicado":
         ts_fecha = mod_resumen.get("_tsDateAdded") or mod_resumen.get("_tsDateUpdated")
@@ -49,38 +52,33 @@ def enviar_discord(mod_resumen, tipo):
         
     fecha_formateada = datetime.datetime.fromtimestamp(ts_fecha).strftime('%d/%m/%Y %H:%M')
 
+    mod_completo = {}
     try:
-        perfil_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Profile"
-        res = requests.get(perfil_url)
+        time.sleep(1.0) # Aumentado a 1s para mayor seguridad
+        perfil_url = f"https://gamebanana.com/apiv11/{model_name}/{mod_id}/Profile"
+        # Corrección menor 2: Usamos HEADERS aquí
+        res = requests.get(perfil_url, headers=HEADERS)
         res.raise_for_status()
         mod_completo = res.json()
     except Exception as e:
         if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
-            print(f"Mod {mod_id} fantasma (404). Se omitirá hasta la próxima hora.")
-            return False 
-        mod_completo = {}
+            print(f"GameBanana bloqueó la lectura del {model_name} {mod_id}. Enviando datos básicos a Discord...")
 
     descripcion_real = ""
     
     if tipo == "Actualizado":
         try:
-            updates_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Updates"
-            res_upd = requests.get(updates_url)
+            updates_url = f"https://gamebanana.com/apiv11/{model_name}/{mod_id}/Updates"
+            time.sleep(0.5)
+            res_upd = requests.get(updates_url, headers=HEADERS)
             if res_upd.status_code == 200:
                 updates_data = res_upd.json()
-                
-                if isinstance(updates_data, dict):
-                    lista_upd = updates_data.get("_aRecords", [])
-                else:
-                    lista_upd = updates_data
+                lista_upd = updates_data.get("_aRecords", []) if isinstance(updates_data, dict) else updates_data
                     
                 if isinstance(lista_upd, list) and len(lista_upd) > 0:
                     upd = lista_upd[0]
-                    titulo_upd = upd.get("_sTitle", "") or upd.get("_sName", "")
-                    texto_upd = upd.get("_sText", "") or upd.get("_sDescription", "")
-                    
-                    titulo_upd = titulo_upd.strip()
-                    texto_upd = texto_upd.strip()
+                    titulo_upd = (upd.get("_sTitle", "") or upd.get("_sName", "")).strip()
+                    texto_upd = (upd.get("_sText", "") or upd.get("_sDescription", "")).strip()
                     texto_limpio = limpiar_texto(texto_upd)
                     
                     if titulo_upd and texto_limpio:
@@ -95,12 +93,22 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*El autor actualizó los archivos pero no dejó notas del parche.*"
     else:
-        descripcion_raw = mod_completo.get("_sDescription") or mod_completo.get("_sText") or mod_resumen.get("_sDescription", "")
+        # Corrección menor 3: Prioridad a _sText (donde está el texto largo del perfil)
+        descripcion_raw = mod_completo.get("_sText") or mod_completo.get("_sDescription") or mod_resumen.get("_sDescription", "")
         descripcion_real = limpiar_texto(descripcion_raw)
+
+        # Corrección menor 4: Si la API falló, extraemos la descripción del hipervínculo (meta og:description)
+        if not descripcion_real or len(descripcion_real) < 10:
+            try:
+                res_web = requests.get(link, headers=HEADERS, timeout=10)
+                match = re.search(r'<meta property="og:description" content="(.*?)"', res_web.text)
+                if match: descripcion_real = match.group(1)[:300]
+            except: pass
+
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! | ¡New Mod Relased! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! | ¡Mod Updated! 🔄"
+    titulo_alerta = f"✨ ¡Nuevo {model_name} Publicado! | ¡New {model_name} Released! ✨" if tipo == "Publicado" else f"🔄 ¡{model_name} Actualizado! | ¡{model_name} Updated! 🔄"
     color = 3066993 if tipo == "Publicado" else 15844367
 
     imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
@@ -108,13 +116,12 @@ def enviar_discord(mod_resumen, tipo):
         imagenes = mod_completo.get("_aPreviewMedia", {}).get("_aImages", [])
 
     imagen_url = ""
-    if imagenes:
+    if imagenes and len(imagenes) > 0:
         base_url = imagenes[0].get("_sBaseUrl", "")
         archivo = imagenes[0].get("_sFile", "")
         if base_url and archivo:
             imagen_url = f"{base_url}/{archivo}"
 
-    # ARREGLO: Construimos el embed con cuidado para no enojar a Discord
     embed = {
         "title": f"{nombre_mod} {'['+version+']' if version else ''}"[:256],
         "url": link,
@@ -123,70 +130,61 @@ def enviar_discord(mod_resumen, tipo):
         "footer": {"text": f"ID: {mod_id} • Date: {fecha_formateada}"}
     }
     
-    # Solo agregamos la imagen si realmente existe un enlace válido
     if imagen_url:
         embed["image"] = {"url": imagen_url}
 
-    data = {
-        "content": f"**{titulo_alerta}**",
-        "embeds": [embed]
-    }
+    data = {"content": f"**{titulo_alerta}**", "embeds": [embed]}
     
-    # ARREGLO: Verificamos si Discord rechaza el mensaje
     res_discord = requests.post(WEBHOOK_URL, json=data)
     if res_discord.status_code >= 400:
-        print(f"❌ Error enviando mod {mod_id} a Discord: Código {res_discord.status_code} - {res_discord.text}")
-        return False # Si Discord lo bloquea, devolvemos False para que NO se registre en el historial.
+        print(f"❌ Error enviando {model_name} {mod_id}: {res_discord.status_code}")
+        return False 
         
     time.sleep(2)
     return True
 
 def main():
     mods = []
-    for page in range(1, 20):
-        url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            records = response.json().get("_aRecords", [])
-            if not records: break
-            mods.extend(records)
-        except Exception as e:
-            print(f"Error en página {page}: {e}")
-            break
+    for tipo_orden in ["new", "updated"]:
+        for page in range(1, 11): 
+            url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort={tipo_orden}&_csvModelInclusions=Mod,Tool,Sound"
+            try:
+                time.sleep(1)
+                response = requests.get(url, headers=HEADERS)
+                response.raise_for_status()
+                records = response.json().get("_aRecords", [])
+                if not records: break
+                mods.extend(records)
+            except Exception as e:
+                print(f"Error en página {page} (Orden: {tipo_orden}): {e}")
+                break
 
     historial = cargar_historial()
     nuevos_datos = historial.copy()
     hubo_cambios = False
-
-    hoy = datetime.datetime.now()
-    inicio_mes = datetime.datetime(hoy.year, hoy.month, 1).timestamp()
+    inicio_mes = datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month, 1).timestamp()
 
     for mod in mods:
         mod_id = str(mod.get("_idRow"))
-        fecha_upd = mod.get("_tsDateUpdated")
-        fecha_add = mod.get("_tsDateAdded")
+        fecha_upd = mod.get("_tsDateUpdated") or 0
+        fecha_add = mod.get("_tsDateAdded") or 0
+        model_name = mod.get("_sModelName", "Mod")
         
-        if not fecha_upd or not fecha_add:
-            tipo_evento = "Actualizado"
-            fecha_upd = fecha_upd or int(time.time())
-        else:
-            tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
+        tipo_evento = "Publicado" if fecha_upd == 0 or abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
-        if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:
+        if mod_id not in nuevos_datos or nuevos_datos[mod_id] < (fecha_upd or fecha_add):
             enviado = True 
-            
             if not historial:
-                if fecha_upd >= inicio_mes:
-                    enviado = enviar_discord(mod, tipo_evento)
+                if (fecha_upd or fecha_add) >= inicio_mes:
+                    enviado = enviar_discord(mod, tipo_evento, model_name)
             else:
-                enviado = enviar_discord(mod, tipo_evento)
+                enviado = enviar_discord(mod, tipo_evento, model_name)
                 
             if enviado is not False:
-                nuevos_datos[mod_id] = fecha_upd
+                nuevos_datos[mod_id] = (fecha_upd or fecha_add)
                 hubo_cambios = True
 
-    if hubo_cambios or not os.path.exists(DATA_FILE):
+    if hubo_cambios:
         guardar_historial(nuevos_datos)
 
 if __name__ == "__main__":
