@@ -5,14 +5,13 @@ import datetime
 import re
 import time
 
-# -*- coding: utf-8 -*-
-
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 GAME_ID = "7886" 
 DATA_FILE = "historial.json"
 
 def cargar_historial():
     if os.path.exists(DATA_FILE):
+        # Curita 1: utf-8 para que los emojis no rompan el bot
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
@@ -102,12 +101,8 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    if tipo == "Publicado":
-        titulo_alerta = "✨ ¡Nuevo Mod Publicado! | ¡New Mod Released! ✨"
-        color = 3066993
-    else:
-        titulo_alerta = "🔄 ¡Mod Actualizado! | ¡Mod Updated! 🔄"
-        color = 15844367
+    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! | ¡New Mod Relased! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! | ¡Mod Updated! 🔄"
+    color = 3066993 if tipo == "Publicado" else 15844367
 
     imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
     if not imagenes: 
@@ -139,6 +134,7 @@ def enviar_discord(mod_resumen, tipo):
 def main():
     mods = []
     for page in range(1, 6):
+        # Curita 2: Usar Mod/Index porque el Subfeed de Switch está roto en Gamebanana
         url = f"https://gamebanana.com/apiv11/Mod/Index?_aFilters[Generic_Game]={GAME_ID}&_sSort=updated&_nPage={page}&_nPerpage=50"
         try:
             response = requests.get(url)
@@ -168,7 +164,8 @@ def main():
         else:
             tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
-        if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:        
+        # Curita 3: Usar nuevos_datos para evitar mensajes clonados
+        if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:
             enviado = True 
             
             if not historial:
@@ -181,6 +178,7 @@ def main():
                 nuevos_datos[mod_id] = fecha_upd
                 hubo_cambios = True
 
+    # Curita 4: Crear el archivo siempre para evitar el Error 128 de Git
     if hubo_cambios or not os.path.exists(DATA_FILE):
         guardar_historial(nuevos_datos)
 
