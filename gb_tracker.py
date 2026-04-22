@@ -136,7 +136,8 @@ def enviar_discord(mod_resumen, tipo):
 def main():
     mods = []
     for page in range(1, 6):
-        url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
+                url = f"https://gamebanana.com/apiv11/Mod/Index?_aFilters[Generic_Game]={GAME_ID}&_sSort=updated&_nPage={page}&_nPerpage=50"
+
         try:
             response = requests.get(url)
             response.raise_for_status()
