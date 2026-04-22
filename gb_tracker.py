@@ -4,7 +4,7 @@ import os
 import datetime
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-GAME_ID = "8501" 
+GAME_ID = "7886" 
 API_URL = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage=1&_sSort=updated"
 DATA_FILE = "historial.json"
 
