@@ -166,8 +166,7 @@ def main():
         else:
             tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
-         if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:
-
+        if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:        
             enviado = True 
             
             if not historial:
@@ -185,3 +184,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
