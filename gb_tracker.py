@@ -1,9 +1,10 @@
 import requests
 import json
 import os
+import datetime
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-GAME_ID = "7886" # Hatsune Miku: Project DIVA Mega Mix+
+GAME_ID = "8501" 
 API_URL = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage=1&_sSort=updated"
 DATA_FILE = "historial.json"
 
@@ -26,8 +27,7 @@ def enviar_discord(mod):
     mod_id = mod.get("_idRow")
     link = f"https://gamebanana.com/mods/{mod_id}"
     
-    # Extraemos la imagen directamente desde los servidores para asegurar que 
-    # mantenga los nombres originales y su dimensión original intacta.
+    # Extraemos la imagen manteniendo la ruta y archivo en su dimensión original
     imagenes = mod.get("_aPreviewMedia", {}).get("_aImages", [])
     imagen_url = ""
     if imagenes:
@@ -59,15 +59,26 @@ def main():
     nuevos_datos = historial.copy()
     hubo_cambios = False
 
+    # Calculamos el timestamp exacto del día 1 del mes actual
+    hoy = datetime.datetime.now()
+    inicio_mes = datetime.datetime(hoy.year, hoy.month, 1).timestamp()
+
     for mod in mods:
         mod_id = str(mod.get("_idRow"))
         fecha_actualizacion = mod.get("_tsDateUpdated")
         
-        # Si el mod no está en el historial, o si la fecha es más nueva
+        # Si detectamos algo que no está en la memoria o es más nuevo...
         if mod_id not in historial or historial[mod_id] < fecha_actualizacion:
-            # Solo enviamos alerta si el historial ya existía (para evitar spam la primera vez)
-            if historial: 
+            
+            # Si el historial está vacío (es nuestra primera ejecución de calibración)
+            if not historial:
+                # Solo disparamos a Discord si se actualizó durante este mes
+                if fecha_actualizacion >= inicio_mes:
+                    enviar_discord(mod)
+            # Si ya hay historial (funcionamiento normal en las próximas horas)
+            else:
                 enviar_discord(mod)
+                
             nuevos_datos[mod_id] = fecha_actualizacion
             hubo_cambios = True
 
