@@ -2,7 +2,7 @@ name: GameBanana Tracker
 
 on:
   schedule:
-    - cron: '*/20 * * * *' # Se ejecuta cada 20 minutos
+    - cron: '0 * * * *' # Se ejecuta cada 60 minutos
   workflow_dispatch: # Permite ejecutarlo manualmente con un botón
 
 jobs:
