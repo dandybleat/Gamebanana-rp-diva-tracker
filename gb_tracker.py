@@ -102,7 +102,7 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
+    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! | ¡New Mod Relased! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! | ¡Mod Updated! 🔄"
     color = 3066993 if tipo == "Publicado" else 15844367
 
     imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
@@ -125,7 +125,7 @@ def enviar_discord(mod_resumen, tipo):
             "description": descripcion_real,
             "color": color,
             "image": {"url": imagen_url},
-            "footer": {"text": f"ID: {mod_id} • 📅 {fecha_formateada}"}
+            "footer": {"text": f"ID: {mod_id} • Date: {fecha_formateada}"}
         }]
     }
     
