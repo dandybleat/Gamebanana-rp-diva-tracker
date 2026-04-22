@@ -35,19 +35,16 @@ def limpiar_texto(html):
 def enviar_discord(mod_resumen, tipo):
     mod_id = mod_resumen.get("_idRow")
     
-    # 1. Consultamos el Perfil (Con filtro de paciencia para mods Fantasma)
+    # 1. Consultamos el Perfil
     try:
         perfil_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Profile"
         res = requests.get(perfil_url)
         res.raise_for_status()
         mod_completo = res.json()
     except Exception as e:
-        # Si da 404, significa que el servidor aún lo procesa como Privado.
         if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
             print(f"Mod {mod_id} fantasma (404). Se omitirá hasta la próxima hora.")
-            return False # Cancelamos el envío para que lo intente más tarde
-            
-        print(f"Error al leer mod {mod_id}: {e}")
+            return False 
         mod_completo = mod_resumen
 
     nombre_mod = mod_completo.get("_sName", "Mod")
@@ -63,7 +60,6 @@ def enviar_discord(mod_resumen, tipo):
             if res_upd.status_code == 200:
                 updates_data = res_upd.json()
                 
-                # CORRECCIÓN: Buscamos dentro de la caja _aRecords si existe
                 if isinstance(updates_data, dict):
                     lista_upd = updates_data.get("_aRecords", [])
                 else:
@@ -95,7 +91,6 @@ def enviar_discord(mod_resumen, tipo):
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    # Fechas
     fecha_upd = mod_completo.get("_tsDateUpdated")
     if not fecha_upd:  
         fecha_upd = mod_completo.get("_tsDateAdded")
@@ -104,16 +99,23 @@ def enviar_discord(mod_resumen, tipo):
         
     timestamp_iso = datetime.datetime.fromtimestamp(fecha_upd, tz=datetime.timezone.utc).isoformat()
 
-    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! " if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
+    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}!" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}!"
     color = 3066993 if tipo == "Publicado" else 15844367
 
-    # Imágenes
-    imagenes = mod_completo.get("_aPreviewMedia", {}).get("_aImages", [])
+    # --- CORRECCIÓN DE IMÁGENES AQUÍ ---
+    # Priorizamos el mod_resumen porque la API de GameBanana SIEMPRE incluye las fotos ahí
+    imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
+    if not imagenes: 
+        # Plan B: por si acaso, revisamos el perfil completo
+        imagenes = mod_completo.get("_aPreviewMedia", {}).get("_aImages", [])
+
     imagen_url = ""
     if imagenes:
         base_url = imagenes[0].get("_sBaseUrl", "")
         archivo = imagenes[0].get("_sFile", "")
-        imagen_url = f"{base_url}/{archivo}"
+        # Tu regla de oro: dimensiones originales y archivos intactos
+        if base_url and archivo:
+            imagen_url = f"{base_url}/{archivo}"
 
     data = {
         "content": f"**{titulo_alerta}**",
@@ -123,14 +125,14 @@ def enviar_discord(mod_resumen, tipo):
             "description": descripcion_real,
             "color": color,
             "image": {"url": imagen_url},
-            "footer": {"text": f"ID: {mod_id}"},
+            "footer": {"text": f"ID: {mod_id} • Actualización real"},
             "timestamp": timestamp_iso 
         }]
     }
     
     requests.post(WEBHOOK_URL, json=data)
     time.sleep(2)
-    return True # Envío exitoso
+    return True
 
 def main():
     mods = []
@@ -165,7 +167,7 @@ def main():
             tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
         if mod_id not in historial or historial[mod_id] < fecha_upd:
-            enviado = True # Por defecto asumimos que se envía bien
+            enviado = True 
             
             if not historial:
                 if fecha_upd >= inicio_mes:
@@ -173,7 +175,6 @@ def main():
             else:
                 enviado = enviar_discord(mod, tipo_evento)
                 
-            # Si el envío fue exitoso (y NO fue un fantasma ignorado), lo guardamos
             if enviado is not False:
                 nuevos_datos[mod_id] = fecha_upd
                 hubo_cambios = True
