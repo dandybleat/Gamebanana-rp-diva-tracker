@@ -21,15 +21,24 @@ def guardar_historial(datos):
 
 def limpiar_texto(html):
     if not html: return ""
+    # 1. Quitamos las etiquetas HTML
     clean = re.compile('<.*?>')
     texto = re.sub(clean, '', html)
     texto = texto.replace('&nbsp;', ' ').strip()
+    
+    # 2. Recolector de basura: Cortamos el texto si empieza la interfaz de la página
+    basura_ui = ["Manage Collections", "Files", "File Info", "Archived Files", "Comments", "Embed", "Credits", "THANKS FOR:"]
+    for palabra in basura_ui:
+        if palabra in texto:
+            # Cortamos el texto justo antes de que aparezca la palabra prohibida
+            texto = texto.split(palabra)[0].strip()
+            
+    # 3. Límite de seguridad para Discord
     return (texto[:300] + '...') if len(texto) > 300 else texto
 
 def enviar_discord(mod_resumen, tipo):
     mod_id = mod_resumen.get("_idRow")
     
-    # 1. Consultamos el Perfil principal (para nombres, versiones, imágenes y fecha)
     try:
         perfil_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Profile"
         res = requests.get(perfil_url)
@@ -43,41 +52,45 @@ def enviar_discord(mod_resumen, tipo):
     version = mod_completo.get("_sVersion", "")
     link = f"https://gamebanana.com/mods/{mod_id}"
     
-    # 2. Lógica inteligente de la Descripción
     descripcion_real = ""
     
     if tipo == "Actualizado":
         try:
-            # Buscamos específicamente el texto del Changelog/Update
             updates_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/Updates"
             res_upd = requests.get(updates_url)
             if res_upd.status_code == 200:
                 updates_data = res_upd.json()
-                # GameBanana devuelve una lista. El [0] es la actualización más reciente.
                 if isinstance(updates_data, list) and len(updates_data) > 0:
-                    texto_upd = updates_data[0].get("_sText", "")
-                    descripcion_real = limpiar_texto(texto_upd)
+                    # Extraemos el Título exacto del parche y su descripción
+                    titulo_upd = updates_data[0].get("_sTitle", "").strip()
+                    texto_upd = updates_data[0].get("_sText", "").strip()
+                    
+                    texto_limpio = limpiar_texto(texto_upd)
+                    
+                    # Armamos un mensaje bonito combinando ambos
+                    if titulo_upd and texto_limpio:
+                        descripcion_real = f"**{titulo_upd}**\n{texto_limpio}"
+                    elif titulo_upd:
+                        descripcion_real = f"**{titulo_upd}**"
+                    elif texto_limpio:
+                        descripcion_real = texto_limpio
         except Exception as e:
             pass
             
-        # Si el modder subió un archivo pero no escribió notas del parche
         if not descripcion_real:
             descripcion_real = "*El autor actualizó los archivos pero no dejó notas del parche.*"
     else:
-        # Si es un mod Nuevo (Publicado), sacamos la descripción de la portada
         descripcion_raw = mod_completo.get("_sDescription") or mod_completo.get("_sText", "")
         descripcion_real = limpiar_texto(descripcion_raw)
         if not descripcion_real:
             descripcion_real = "*Sin descripción disponible en la portada.*"
 
-    # 3. Fechas reales y formato visual
     fecha_upd = mod_completo.get("_tsDateUpdated", mod_completo.get("_tsDateAdded"))
     timestamp_iso = datetime.datetime.fromtimestamp(fecha_upd, tz=datetime.timezone.utc).isoformat()
 
     titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
     color = 3066993 if tipo == "Publicado" else 15844367
 
-    # 4. Imagen en calidad original
     imagenes = mod_completo.get("_aPreviewMedia", {}).get("_aImages", [])
     imagen_url = ""
     if imagenes:
@@ -103,7 +116,6 @@ def enviar_discord(mod_resumen, tipo):
 
 def main():
     mods = []
-    # Revisamos las primeras 5 páginas (250 mods)
     for page in range(1, 6):
         url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
         try:
