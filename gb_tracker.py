@@ -143,7 +143,7 @@ def enviar_discord(mod_resumen, tipo):
 
 def main():
     mods = []
-    for page in range(1, 6):
+    for page in range(1, 20):
         url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
         try:
             response = requests.get(url)
