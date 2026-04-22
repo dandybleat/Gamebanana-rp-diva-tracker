@@ -48,7 +48,7 @@ def enviar_discord(mod_resumen, tipo):
     if not ts_fecha:
         ts_fecha = int(time.time())
         
-    # Magia de Python: Convertimos el número a tu formato exacto
+    # Magia de Python: Convertimos el nÃºmero a tu formato exacto
     fecha_formateada = datetime.datetime.fromtimestamp(ts_fecha).strftime('%d/%m/%Y %H:%M')
 
     try:
@@ -58,7 +58,7 @@ def enviar_discord(mod_resumen, tipo):
         mod_completo = res.json()
     except Exception as e:
         if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
-            print(f"Mod {mod_id} fantasma (404). Se omitirá hasta la próxima hora.")
+            print(f"Mod {mod_id} fantasma (404). Se omitirÃ¡ hasta la prÃ³xima hora.")
             return False 
         mod_completo = {}
 
@@ -95,14 +95,14 @@ def enviar_discord(mod_resumen, tipo):
             pass
             
         if not descripcion_real:
-            descripcion_real = "*El autor actualizó los archivos pero no dejó notas del parche.*"
+            descripcion_real = "*El autor actualizÃ³ los archivos pero no dejÃ³ notas del parche.*"
     else:
         descripcion_raw = mod_completo.get("_sDescription") or mod_completo.get("_sText") or mod_resumen.get("_sDescription", "")
         descripcion_real = limpiar_texto(descripcion_raw)
         if not descripcion_real:
-            descripcion_real = "*Sin descripción disponible en la portada.*"
+            descripcion_real = "*Sin descripciÃ³n disponible en la portada.*"
 
-    titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! | ¡New Mod Relased! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! | ¡Mod Updated! 🔄"
+    titulo_alerta = f"âœ¨ Â¡Nuevo Mod {tipo}! | Â¡New Mod Relased! âœ¨" if tipo == "Publicado" else f"ðŸ”„ Â¡Mod {tipo}! | Â¡Mod Updated! ðŸ”„"
     color = 3066993 if tipo == "Publicado" else 15844367
 
     imagenes = mod_resumen.get("_aPreviewMedia", {}).get("_aImages", [])
@@ -125,7 +125,7 @@ def enviar_discord(mod_resumen, tipo):
             "description": descripcion_real,
             "color": color,
             "image": {"url": imagen_url},
-            "footer": {"text": f"ID: {mod_id} • Date: {fecha_formateada}"}
+            "footer": {"text": f"ID: {mod_id} â€¢ Date: {fecha_formateada}"}
         }]
     }
     
@@ -145,7 +145,7 @@ def main():
             if not records: break
             mods.extend(records)
         except Exception as e:
-            print(f"Error en página {page}: {e}")
+            print(f"Error en pÃ¡gina {page}: {e}")
             break
 
     historial = cargar_historial()
@@ -166,7 +166,8 @@ def main():
         else:
             tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
-        if mod_id not in historial or historial[mod_id] < fecha_upd:
+         if mod_id not in nuevos_datos or nuevos_datos[mod_id] < fecha_upd:
+
             enviado = True 
             
             if not historial:
@@ -184,4 +185,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
