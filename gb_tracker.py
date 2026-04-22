@@ -3,7 +3,7 @@ import json
 import os
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-GAME_ID = "8501" # Hatsune Miku: Project DIVA Mega Mix+
+GAME_ID = "7886" # Hatsune Miku: Project DIVA Mega Mix+
 API_URL = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage=1&_sSort=updated"
 DATA_FILE = "historial.json"
 
