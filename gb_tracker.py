@@ -7,7 +7,6 @@ import time
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 GAME_ID = "7886" 
-API_URL = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage=1&_sSort=updated"
 DATA_FILE = "historial.json"
 
 def cargar_historial():
@@ -21,7 +20,6 @@ def guardar_historial(datos):
         json.dump(datos, f, indent=4)
 
 def limpiar_texto(html):
-    # Quita etiquetas HTML y limpia espacios extra de la descripción
     if not html: return ""
     clean = re.compile('<.*?>')
     texto = re.sub(clean, '', html)
@@ -31,16 +29,13 @@ def enviar_discord(mod, tipo):
     nombre_mod = mod.get("_sName", "Mod")
     version = mod.get("_sVersion", "")
     
-    # El título dirá "Publicado" o "Actualizado" según corresponda
     titulo_alerta = f"✨ ¡Nuevo Mod {tipo}! ✨" if tipo == "Publicado" else f"🔄 ¡Mod {tipo}! 🔄"
     
     mod_id = mod.get("_idRow")
     link = f"https://gamebanana.com/mods/{mod_id}"
     
-    # Obtenemos la descripción real del mod
     descripcion_real = limpiar_texto(mod.get("_sDescription", "Sin descripción disponible."))
     
-    # Extraemos la imagen manteniendo dimensiones y nombres originales
     imagenes = mod.get("_aPreviewMedia", {}).get("_aImages", [])
     imagen_url = ""
     if imagenes:
@@ -48,7 +43,7 @@ def enviar_discord(mod, tipo):
         archivo = imagenes[0].get("_sFile", "")
         imagen_url = f"{base_url}/{archivo}"
 
-    color = 3066993 if tipo == "Publicado" else 15844367 # Verde para nuevo, Amarillo para update
+    color = 3066993 if tipo == "Publicado" else 15844367
 
     data = {
         "content": f"**{titulo_alerta}**",
@@ -63,16 +58,26 @@ def enviar_discord(mod, tipo):
         }]
     }
     requests.post(WEBHOOK_URL, json=data)
-    time.sleep(2)  # <-- ESTE ES EL FRENO MAGICO
+    time.sleep(2) # Freno para que Discord no nos bloquee
 
 def main():
-    try:
-        response = requests.get(API_URL)
-        response.raise_for_status()
-        mods = response.json().get("_aRecords", [])
-    except Exception as e:
-        print(f"Error: {e}")
-        return
+    mods = []
+    
+    # Hacemos que el bot revise las primeras 5 páginas (50 mods por página = 250 mods)
+    for page in range(1, 6):
+        url = f"https://gamebanana.com/apiv11/Game/{GAME_ID}/Subfeed?_nPage={page}&_nPerpage=50&_sSort=updated"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            records = response.json().get("_aRecords", [])
+            
+            if not records:
+                break # Si llegamos a una página vacía, dejamos de buscar
+                
+            mods.extend(records)
+        except Exception as e:
+            print(f"Error al conectar con la API en la página {page}: {e}")
+            break
 
     historial = cargar_historial()
     nuevos_datos = historial.copy()
@@ -86,8 +91,6 @@ def main():
         fecha_upd = mod.get("_tsDateUpdated")
         fecha_add = mod.get("_tsDateAdded")
         
-        # Determinamos si es Publicado o Actualizado
-        # Si la fecha de update es la misma que la de creación (o muy cercana), es nuevo.
         tipo_evento = "Publicado" if abs(fecha_upd - fecha_add) < 60 else "Actualizado"
 
         if mod_id not in historial or historial[mod_id] < fecha_upd:
