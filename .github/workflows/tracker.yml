@@ -35,6 +35,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add historial.json
+          git add *.json
           git commit -m "Actualizando historial de mods" || echo "Sin novedades."
           git push
