@@ -2,13 +2,13 @@ name: GameBanana Tracker
 
 on:
   schedule:
+    # Se ejecutará en los minutos 13 y 43 de cada hora (ej. 18:13, 18:43, 19:13...)
     - cron: '13,43 * * * *'
   workflow_dispatch:
 
 jobs:
   run-tracker:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -33,13 +33,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
           git add historial.json
-
-          if git diff --cached --quiet; then
-            echo "Sin novedades."
-          else
-            git commit -m "Actualizando historial de mods"
-            git pull --rebase origin main
-            git push
-          fi
+          git commit -m "Actualizando historial de mods" || echo "Sin novedades."
+          git push
